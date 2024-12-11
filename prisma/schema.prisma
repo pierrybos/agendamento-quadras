@@ -1,40 +1,82 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "debian-openssl-1.1.x"]
+}
 
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
 
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
-generator client {
-  provider = "prisma-client-js"
-}
-
 model User {
   id           Int           @id @default(autoincrement())
   email        String        @unique
   name         String?
+  birthDate    DateTime? // Data de aniversário
+  phone        String? // Número de telefone
+  isWhatsApp   Boolean? // Indica se o telefone é WhatsApp
+  type         String // Tipo de cliente: "mensalista" ou "normal"
+  role         String        @default("user") // Define o papel: "admin" ou "user"
   createdAt    DateTime      @default(now())
-  agendamentos Agendamento[] // Relacionamento com Agendamento
+  agendamentos Agendamento[]
 }
 
 model Quadra {
   id           Int           @id @default(autoincrement())
-  name         String
-  location     String
+  name         String // Nome da quadra
+  location     String // Localização ou endereço
+  description  String? // Descrição adicional
   available    Boolean       @default(true)
-  agendamentos Agendamento[] // Relacionamento com Agendamento
+    isActive    Boolean  @default(true) // Exclusão lógica
+  createdAt   DateTime @default(now())
+  prices       QuadraPrice[] // Relação N-N com Price
+  horarios     Horario[] // Relação com horários
+  agendamentos Agendamento[]
 }
 
 model Agendamento {
-  id        Int      @id @default(autoincrement())
-  date      DateTime
-  userId    Int
-  quadraId  Int
-  user      User     @relation(fields: [userId], references: [id])
-  quadra    Quadra   @relation(fields: [quadraId], references: [id])
-  createdAt DateTime @default(now())
+  id               Int      @id @default(autoincrement())
+  userId           Int // Relacionado ao cliente que agendou
+  quadraId         Int // Relacionado à quadra
+  horarioId        Int // Relacionado ao horário reservado
+  status           String   @default("pending") // Status: pending, confirmed, cancelled
+  totalValue       Float // Valor total calculado
+  paymentStatus    String   @default("pending") // Status do pagamento: pending, paid, failed
+  paymentMethod    String   @default("pix") // Método de pagamento (default: Pix)
+  paymentReference String? // Referência do pagamento no provedor
+  createdAt        DateTime @default(now())
+  isActive         Boolean  @default(true) // Exclusão lógica
+  quadra           Quadra   @relation(fields: [quadraId], references: [id])
+  horario          Horario  @relation(fields: [horarioId], references: [id])
+  user             User     @relation(fields: [userId], references: [id])
+}
+
+model Price {
+  id       Int           @id @default(autoincrement())
+  duration Int // Duração em horas (ex.: 1h, 2h)
+  type     String // Tipo: "mensalista" ou "normal"
+  value    Float // Valor do preço
+    isActive    Boolean  @default(true) // Exclusão lógica
+  createdAt   DateTime @default(now())
+  quadras  QuadraPrice[] // Relação N-N com Quadra
+}
+
+model QuadraPrice {
+  id       Int    @id @default(autoincrement())
+  quadraId Int // Relacionado à Quadra
+  priceId  Int // Relacionado ao Price
+  quadra   Quadra @relation(fields: [quadraId], references: [id])
+  price    Price  @relation(fields: [priceId], references: [id])
+}
+
+model Horario {
+  id           Int           @id @default(autoincrement())
+  start        DateTime // Hora de início
+  end          DateTime // Hora de término
+  quadraId     Int // Relacionado à quadra
+  isActive    Boolean  @default(true) // Exclusão lógica
+  createdAt   DateTime @default(now())
+  quadra      Quadra   @relation(fields: [quadraId], references: [id])
+  agendamentos Agendamento[] // Relação com Agendamento
 }

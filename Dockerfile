@@ -1,13 +1,18 @@
-# Dockerfile
-FROM node:18-alpine
+FROM node:18-bullseye
 
 WORKDIR /app
 
 COPY package.json yarn.lock ./
+RUN yarn install --frozen-lockfile
 
-RUN yarn install
+# Copiar os arquivos restantes
+COPY . . 
 
-COPY . .
+# Gere o Prisma Client
+RUN npx prisma generate
 
+# Exponha a porta (se necessário)
 EXPOSE 3000
+
+# Comando para iniciar a aplicação
 CMD ["yarn", "dev"]
