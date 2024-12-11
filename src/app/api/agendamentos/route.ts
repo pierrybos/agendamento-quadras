@@ -4,12 +4,19 @@ const prisma = new PrismaClient();
 
 export async function GET(req: Request) {
   try {
+    const { searchParams } = new URL(req.url);
+    const empresaId = searchParams.get("empresaId"); // Filtra por empresa, se necessário
+
     const agendamentos = await prisma.agendamento.findMany({
-      where: { isActive: true },
+      where: {
+        isActive: true,
+        ...(empresaId ? { empresaId: parseInt(empresaId) } : {}), // Filtro opcional por empresa
+      },
       include: {
         quadra: true,
         horario: true,
         user: true,
+        empresa: true, // Inclui detalhes da empresa associada
       },
     });
 
@@ -35,6 +42,7 @@ export async function POST(req: Request) {
         userId: body.userId,
         quadraId: body.quadraId,
         horarioId: body.horarioId,
+        empresaId: body.empresaId,
         status: body.status || "pending",
         totalValue: body.totalValue,
         paymentStatus: body.paymentStatus || "pending",

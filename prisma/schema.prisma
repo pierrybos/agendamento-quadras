@@ -3,7 +3,6 @@ generator client {
   binaryTargets = ["native", "debian-openssl-1.1.x"]
 }
 
-
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
@@ -15,11 +14,31 @@ model User {
   name         String?
   birthDate    DateTime? // Data de aniversário
   phone        String? // Número de telefone
+  companyId    Int?        // Null se for admin
+  company      Empresa?    @relation("UserToEmpresa") // Apenas o User nomeia a relação
   isWhatsApp   Boolean? // Indica se o telefone é WhatsApp
-  type         String // Tipo de cliente: "mensalista" ou "normal"
-  role         String        @default("user") // Define o papel: "admin" ou "user"
-  createdAt    DateTime      @default(now())
+  mensalista   Boolean? // false normal true mensalista
+  type         String @default("cliente") // Tipo de cliente: "mensalista" ou "normal"
+  role         String @default("user") // Define o papel: "admin" ou "user"
   agendamentos Agendamento[]
+  accounts     Account[] // Relação de volta para Account
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model Empresa {
+  id          Int         @id @default(autoincrement())
+  name        String
+  address     String
+  contact     String
+  ownerId     Int         @unique // Um gerente para uma empresa
+  owner       User        @relation("UserToEmpresa", fields: [ownerId], references: [id]) // Apenas a Empresa define a relação
+  quadras     Quadra[]
+  precos      Price[]
+  horarios    Horario[]
+  agendamentos Agendamento[]
+  createdAt   DateTime    @default(now())
+  isActive    Boolean     @default(true) // Exclusão lógica
 }
 
 model Quadra {
@@ -27,45 +46,41 @@ model Quadra {
   name         String // Nome da quadra
   location     String // Localização ou endereço
   description  String? // Descrição adicional
+  empresaId    Int
+  empresa      Empresa     @relation(fields: [empresaId], references: [id])
   available    Boolean       @default(true)
-    isActive    Boolean  @default(true) // Exclusão lógica
-  createdAt   DateTime @default(now())
+  isActive     Boolean       @default(true) // Exclusão lógica
+  createdAt    DateTime      @default(now())
   prices       QuadraPrice[] // Relação N-N com Price
   horarios     Horario[] // Relação com horários
   agendamentos Agendamento[]
 }
 
-model Agendamento {
-  id               Int      @id @default(autoincrement())
-  userId           Int // Relacionado ao cliente que agendou
-  quadraId         Int // Relacionado à quadra
-  horarioId        Int // Relacionado ao horário reservado
-  status           String   @default("pending") // Status: pending, confirmed, cancelled
-  totalValue       Float // Valor total calculado
-  paymentStatus    String   @default("pending") // Status do pagamento: pending, paid, failed
-  paymentMethod    String   @default("pix") // Método de pagamento (default: Pix)
-  paymentReference String? // Referência do pagamento no provedor
-  createdAt        DateTime @default(now())
-  isActive         Boolean  @default(true) // Exclusão lógica
-  quadra           Quadra   @relation(fields: [quadraId], references: [id])
-  horario          Horario  @relation(fields: [horarioId], references: [id])
-  user             User     @relation(fields: [userId], references: [id])
+model Account {
+  id                Int    @id @default(autoincrement())
+  userId            Int
+  provider          String
+  providerAccountId String
+  user              User   @relation(fields: [userId], references: [id])
+  createdAt         DateTime @default(now())
 }
 
 model Price {
   id       Int           @id @default(autoincrement())
-  duration Int // Duração em horas (ex.: 1h, 2h)
   type     String // Tipo: "mensalista" ou "normal"
+  duration Int // Duração em horas (ex.: 1h, 2h)
   value    Float // Valor do preço
-    isActive    Boolean  @default(true) // Exclusão lógica
-  createdAt   DateTime @default(now())
+  empresaId Int
+  empresa  Empresa     @relation(fields: [empresaId], references: [id])
+  isActive Boolean      @default(true) // Exclusão lógica
+  createdAt DateTime    @default(now())
   quadras  QuadraPrice[] // Relação N-N com Quadra
 }
 
 model QuadraPrice {
   id       Int    @id @default(autoincrement())
-  quadraId Int // Relacionado à Quadra
-  priceId  Int // Relacionado ao Price
+  quadraId Int
+  priceId  Int
   quadra   Quadra @relation(fields: [quadraId], references: [id])
   price    Price  @relation(fields: [priceId], references: [id])
 }
@@ -74,9 +89,30 @@ model Horario {
   id           Int           @id @default(autoincrement())
   start        DateTime // Hora de início
   end          DateTime // Hora de término
-  quadraId     Int // Relacionado à quadra
-  isActive    Boolean  @default(true) // Exclusão lógica
-  createdAt   DateTime @default(now())
-  quadra      Quadra   @relation(fields: [quadraId], references: [id])
-  agendamentos Agendamento[] // Relação com Agendamento
+  quadraId     Int
+  quadra       Quadra   @relation(fields: [quadraId], references: [id])
+  empresaId    Int
+  empresa      Empresa  @relation(fields: [empresaId], references: [id])
+  isActive     Boolean  @default(true) // Exclusão lógica
+  createdAt    DateTime @default(now())
+  agendamentos Agendamento[]
+}
+
+model Agendamento {
+  id               Int      @id @default(autoincrement())
+  userId           Int
+  quadraId         Int
+  horarioId        Int
+  empresaId        Int
+  status           String   @default("pending") // Status: pending, confirmed, cancelled
+  totalValue       Float // Valor total calculado
+  paymentStatus    String   @default("pending") // Status do pagamento: pending, paid, failed
+  paymentMethod    String   @default("pix") // Método de pagamento (default: Pix)
+  paymentReference String? // Referência do pagamento no provedor
+  isActive         Boolean  @default(true) // Exclusão lógica
+  createdAt        DateTime @default(now())
+  user             User     @relation(fields: [userId], references: [id])
+  quadra           Quadra   @relation(fields: [quadraId], references: [id])
+  horario          Horario  @relation(fields: [horarioId], references: [id])
+  empresa          Empresa  @relation(fields: [empresaId], references: [id])
 }

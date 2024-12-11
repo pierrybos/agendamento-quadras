@@ -5,8 +5,15 @@ const prisma = new PrismaClient();
 // Listar todas as quadras
 export async function GET(req: Request) {
   try {
+    const { searchParams } = new URL(req.url);
+    const empresaId = searchParams.get("empresaId");
+
     const quadras = await prisma.quadra.findMany({
-      where: { isActive: true },
+      where: {
+        isActive: true,
+        ...(empresaId ? { empresaId: parseInt(empresaId) } : {}),
+      },
+      include: { empresa: true, horarios: true, prices: true },
     });
     return new Response(JSON.stringify(quadras), { 
         status: 200, 
@@ -24,10 +31,10 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { name, location, description } = body;
+    const { name, location, description, empresaId } = body;
 
     const newQuadra = await prisma.quadra.create({
-      data: { name, location, description },
+      data: { name, location, description, empresaId },
     });
 
     return new Response(JSON.stringify(newQuadra), { status: 201, headers: { "Content-Type": "application/json" } });
@@ -69,11 +76,12 @@ export async function DELETE(req: Request) {
       return new Response(JSON.stringify({ error: "ID é obrigatório para excluir quadra" }), { status: 400 });
     }
 
-    await prisma.quadra.delete({
+    const quadraDesativada = await prisma.quadra.update({
       where: { id: Number(id) },
+      data: { isActive: false },
     });
 
-    return new Response(JSON.stringify({ message: "Quadra excluída com sucesso" }), { status: 200, headers: { "Content-Type": "application/json" }, });
+    return new Response(JSON.stringify({ message: "Quadra desativada com sucesso" }), { status: 200, headers: { "Content-Type": "application/json" }, });
   } catch (error) {
     console.error("Erro ao excluir quadra:", error);
     return new Response(JSON.stringify({ error: "Erro ao excluir quadra" }), { status: 500 });

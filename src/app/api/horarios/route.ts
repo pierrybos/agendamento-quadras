@@ -5,9 +5,21 @@ const prisma = new PrismaClient();
 
 export async function GET(req: Request) {
   try {
+    const { searchParams } = new URL(req.url);
+    const quadraId = searchParams.get("quadraId");
+    const empresaId = searchParams.get("empresaId");
+
     const horarios = await prisma.horario.findMany({
-      where: { isActive: true },
-      include: { quadra: true },
+      where: {
+        isActive: true,
+        ...(quadraId ? { quadraId: parseInt(quadraId) } : {}),
+        ...(empresaId ? { empresaId: parseInt(empresaId) } : {}),
+      },
+      include: {
+        quadra: true,
+        empresa: true,
+        agendamentos: true,
+      },
     });
 
     return new Response(JSON.stringify(horarios), {
@@ -15,16 +27,10 @@ export async function GET(req: Request) {
       headers: { "Content-Type": "application/json" },
     });
   } catch (error) {
-    console.log('error');
-    console.log('error');
-    console.log('error');
-    console.log(error);
+    console.error("Erro ao listar horários:", error);
     return new Response(
       JSON.stringify({ error: "Erro ao listar horários" }),
-      {
-        status: 500,
-        headers: { "Content-Type": "application/json" },
-      }
+      { status: 500, headers: { "Content-Type": "application/json" } }
     );
   }
 }
@@ -33,10 +39,15 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { start, end, quadraId } = body;
+    const { start, end, quadraId, empresaId } = body;
 
     const novoHorario = await prisma.horario.create({
-      data: { start: new Date(start), end: new Date(end), quadraId },
+      data: {
+        start: new Date(start),
+        end: new Date(end),
+        quadraId,
+        empresaId,
+      },
     });
 
     return new Response(JSON.stringify(novoHorario), {
@@ -44,12 +55,10 @@ export async function POST(req: Request) {
       headers: { "Content-Type": "application/json" },
     });
   } catch (error) {
+    console.error("Erro ao criar horário:", error);
     return new Response(
       JSON.stringify({ error: "Erro ao criar horário" }),
-      {
-        status: 500,
-        headers: { "Content-Type": "application/json" },
-      }
+      { status: 500, headers: { "Content-Type": "application/json" } }
     );
   }
 }
@@ -59,11 +68,16 @@ export async function POST(req: Request) {
 export async function PUT(req: Request) {
   try {
     const body = await req.json();
-    const { id, start, end, quadraId } = body;
+    const { id, start, end, quadraId, empresaId } = body;
 
     const horarioAtualizado = await prisma.horario.update({
       where: { id },
-      data: { start: new Date(start), end: new Date(end), quadraId },
+      data: {
+        start: new Date(start),
+        end: new Date(end),
+        quadraId,
+        empresaId,
+      },
     });
 
     return new Response(JSON.stringify(horarioAtualizado), {
@@ -71,12 +85,10 @@ export async function PUT(req: Request) {
       headers: { "Content-Type": "application/json" },
     });
   } catch (error) {
+    console.error("Erro ao atualizar horário:", error);
     return new Response(
       JSON.stringify({ error: "Erro ao atualizar horário" }),
-      {
-        status: 500,
-        headers: { "Content-Type": "application/json" },
-      }
+      { status: 500, headers: { "Content-Type": "application/json" } }
     );
   }
 }
@@ -95,24 +107,23 @@ export async function DELETE(req: Request) {
       });
     }
 
-    await prisma.horario.delete({
+    const horarioDesativado = await prisma.horario.update({
       where: { id },
+      data: { isActive: false },
     });
 
     return new Response(
-      JSON.stringify({ message: "Horário excluído com sucesso" }),
+      JSON.stringify({ message: "Horário desativado com sucesso" }),
       {
         status: 200,
         headers: { "Content-Type": "application/json" },
       }
     );
   } catch (error) {
+    console.error("Erro ao excluir horário:", error);
     return new Response(
       JSON.stringify({ error: "Erro ao excluir horário" }),
-      {
-        status: 500,
-        headers: { "Content-Type": "application/json" },
-      }
+      { status: 500, headers: { "Content-Type": "application/json" } }
     );
   }
 }
