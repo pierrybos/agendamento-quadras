@@ -9,21 +9,27 @@ datasource db {
 }
 
 model User {
-  id           Int           @id @default(autoincrement())
-  email        String        @unique
-  name         String?
-  birthDate    DateTime? // Data de aniversário
-  phone        String? // Número de telefone
-  companyId    Int?        // Null se for admin
-  company      Empresa?    @relation("UserToEmpresa") // Apenas o User nomeia a relação
-  isWhatsApp   Boolean? // Indica se o telefone é WhatsApp
-  mensalista   Boolean? // false normal true mensalista
-  type         String @default("cliente") // Tipo de cliente: "mensalista" ou "normal"
-  role         String @default("user") // Define o papel: "admin" ou "user"
-  agendamentos Agendamento[]
-  accounts     Account[] // Relação de volta para Account
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id            String        @id @default(cuid())
+  email         String        @unique
+  name          String?
+  birthDate     DateTime? // Data de aniversário
+  phone         String? // Número de telefone
+  companyId     Int?        // Null se for admin
+  company       Empresa?     @relation("EmpresaToUser", fields: [companyId], references: [id]) // Apenas o User nomeia a relação
+  isWhatsApp    Boolean? // Indica se o telefone é WhatsApp
+  mensalista    Boolean? // false normal true mensalista
+  type          String @default("cliente") // Tipo de cliente: "mensalista" ou "normal"
+  role          String @default("user") // Define o papel: "admin" ou "user"
+  emailVerified DateTime?     // Campo necessário para NextAuth
+  image         String?       // Campo necessário para NextAuth
+  agendamentos  Agendamento[]
+  accounts      Account[] // Relação de volta para Account
+  sessions      Session[]
+  empresaOwned  Empresa?     @relation("UserToEmpresa")
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  @@map("users")
 }
 
 model Empresa {
@@ -31,12 +37,13 @@ model Empresa {
   name        String
   address     String
   contact     String
-  ownerId     Int         @unique // Um gerente para uma empresa
+  ownerId     String       @unique // Um gerente para uma empresa
   owner       User        @relation("UserToEmpresa", fields: [ownerId], references: [id]) // Apenas a Empresa define a relação
   quadras     Quadra[]
   precos      Price[]
   horarios    Horario[]
   agendamentos Agendamento[]
+  users       User[]       @relation("EmpresaToUser")
   createdAt   DateTime    @default(now())
   isActive    Boolean     @default(true) // Exclusão lógica
 }
@@ -57,12 +64,22 @@ model Quadra {
 }
 
 model Account {
-  id                Int    @id @default(autoincrement())
-  userId            Int
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
   provider          String
   providerAccountId String
-  user              User   @relation(fields: [userId], references: [id])
-  createdAt         DateTime @default(now())
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@map("accounts")
 }
 
 model Price {
@@ -91,7 +108,7 @@ model Horario {
   end          DateTime // Hora de término
   quadraId     Int
   quadra       Quadra   @relation(fields: [quadraId], references: [id])
-  empresaId    Int
+  empresaId    Int      // Voltando a ser obrigatório
   empresa      Empresa  @relation(fields: [empresaId], references: [id])
   isActive     Boolean  @default(true) // Exclusão lógica
   createdAt    DateTime @default(now())
@@ -100,7 +117,7 @@ model Horario {
 
 model Agendamento {
   id               Int      @id @default(autoincrement())
-  userId           Int
+  userId           String
   quadraId         Int
   horarioId        Int
   empresaId        Int
@@ -115,4 +132,12 @@ model Agendamento {
   quadra           Quadra   @relation(fields: [quadraId], references: [id])
   horario          Horario  @relation(fields: [horarioId], references: [id])
   empresa          Empresa  @relation(fields: [empresaId], references: [id])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
