@@ -1,6 +1,8 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
 generator client {
-  provider      = "prisma-client-js"
-  binaryTargets = ["native", "debian-openssl-1.1.x"]
+  provider = "prisma-client-js"
 }
 
 datasource db {
@@ -9,58 +11,21 @@ datasource db {
 }
 
 model User {
-  id            String        @id @default(cuid())
-  email         String        @unique
+  id            String    @id @default(cuid())
   name          String?
-  birthDate     DateTime? // Data de aniversário
-  phone         String? // Número de telefone
-  companyId     Int?        // Null se for admin
-  company       Empresa?     @relation("EmpresaToUser", fields: [companyId], references: [id]) // Apenas o User nomeia a relação
-  isWhatsApp    Boolean? // Indica se o telefone é WhatsApp
-  mensalista    Boolean? // false normal true mensalista
-  type          String @default("cliente") // Tipo de cliente: "mensalista" ou "normal"
-  role          String @default("user") // Define o papel: "admin" ou "user"
-  emailVerified DateTime?     // Campo necessário para NextAuth
-  image         String?       // Campo necessário para NextAuth
-  agendamentos  Agendamento[]
-  accounts      Account[] // Relação de volta para Account
+  email         String?   @unique
+  emailVerified DateTime?
+  image         String?
+  password      String?
+  type          String?   // "empresa" ou "cliente"
+  role          String?   @default("user")
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  empresaOwned  Empresa?  @relation("EmpresaOwner")
+  accounts      Account[]
   sessions      Session[]
-  empresaOwned  Empresa?     @relation("UserToEmpresa")
-  createdAt     DateTime     @default(now())
-  updatedAt     DateTime     @updatedAt
 
   @@map("users")
-}
-
-model Empresa {
-  id          Int         @id @default(autoincrement())
-  name        String
-  address     String
-  contact     String
-  ownerId     String       @unique // Um gerente para uma empresa
-  owner       User        @relation("UserToEmpresa", fields: [ownerId], references: [id]) // Apenas a Empresa define a relação
-  quadras     Quadra[]
-  precos      Price[]
-  horarios    Horario[]
-  agendamentos Agendamento[]
-  users       User[]       @relation("EmpresaToUser")
-  createdAt   DateTime    @default(now())
-  isActive    Boolean     @default(true) // Exclusão lógica
-}
-
-model Quadra {
-  id           Int           @id @default(autoincrement())
-  name         String // Nome da quadra
-  location     String // Localização ou endereço
-  description  String? // Descrição adicional
-  empresaId    Int
-  empresa      Empresa     @relation(fields: [empresaId], references: [id])
-  available    Boolean       @default(true)
-  isActive     Boolean       @default(true) // Exclusão lógica
-  createdAt    DateTime      @default(now())
-  prices       QuadraPrice[] // Relação N-N com Price
-  horarios     Horario[] // Relação com horários
-  agendamentos Agendamento[]
 }
 
 model Account {
@@ -76,62 +41,11 @@ model Account {
   scope             String?
   id_token          String? @db.Text
   session_state     String?
-  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([provider, providerAccountId])
   @@map("accounts")
-}
-
-model Price {
-  id       Int           @id @default(autoincrement())
-  type     String // Tipo: "mensalista" ou "normal"
-  duration Int // Duração em horas (ex.: 1h, 2h)
-  value    Float // Valor do preço
-  empresaId Int
-  empresa  Empresa     @relation(fields: [empresaId], references: [id])
-  isActive Boolean      @default(true) // Exclusão lógica
-  createdAt DateTime    @default(now())
-  quadras  QuadraPrice[] // Relação N-N com Quadra
-}
-
-model QuadraPrice {
-  id       Int    @id @default(autoincrement())
-  quadraId Int
-  priceId  Int
-  quadra   Quadra @relation(fields: [quadraId], references: [id])
-  price    Price  @relation(fields: [priceId], references: [id])
-}
-
-model Horario {
-  id           Int           @id @default(autoincrement())
-  start        DateTime // Hora de início
-  end          DateTime // Hora de término
-  quadraId     Int
-  quadra       Quadra   @relation(fields: [quadraId], references: [id])
-  empresaId    Int      // Voltando a ser obrigatório
-  empresa      Empresa  @relation(fields: [empresaId], references: [id])
-  isActive     Boolean  @default(true) // Exclusão lógica
-  createdAt    DateTime @default(now())
-  agendamentos Agendamento[]
-}
-
-model Agendamento {
-  id               Int      @id @default(autoincrement())
-  userId           String
-  quadraId         Int
-  horarioId        Int
-  empresaId        Int
-  status           String   @default("pending") // Status: pending, confirmed, cancelled
-  totalValue       Float // Valor total calculado
-  paymentStatus    String   @default("pending") // Status do pagamento: pending, paid, failed
-  paymentMethod    String   @default("pix") // Método de pagamento (default: Pix)
-  paymentReference String? // Referência do pagamento no provedor
-  isActive         Boolean  @default(true) // Exclusão lógica
-  createdAt        DateTime @default(now())
-  user             User     @relation(fields: [userId], references: [id])
-  quadra           Quadra   @relation(fields: [quadraId], references: [id])
-  horario          Horario  @relation(fields: [horarioId], references: [id])
-  empresa          Empresa  @relation(fields: [empresaId], references: [id])
 }
 
 model Session {
@@ -140,4 +54,51 @@ model Session {
   userId       String
   expires      DateTime
   user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+  @@map("verificationtokens")
+}
+
+model Empresa {
+  id      String   @id @default(cuid())
+  name    String
+  contact String
+  userId  String   @unique
+  owner   User     @relation("EmpresaOwner", fields: [userId], references: [id])
+  quadras Quadra[]
+}
+
+model Quadra {
+  id              String   @id @default(cuid())
+  name            String
+  location        String
+  description     String?
+  precoNormal     Float
+  precoMensalista Float
+  empresaId       String
+  empresa         Empresa  @relation(fields: [empresaId], references: [id])
+  agendamentos    Agendamento[]
+}
+
+model Agendamento {
+  id        String   @id @default(cuid())
+  quadraId  String
+  quadra    Quadra   @relation(fields: [quadraId], references: [id])
+  dataInicio DateTime
+  dataFim   DateTime
+  nomeCliente String
+  telefoneCliente String
+  email     String?
+  status    String   @default("confirmado") // confirmado, cancelado, pendente
+  observacoes String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }

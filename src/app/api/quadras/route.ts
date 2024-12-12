@@ -1,12 +1,13 @@
 import { PrismaClient } from "@prisma/client";
 import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
 
 const prisma = new PrismaClient();
 
 // Listar todas as quadras
 export async function GET(req: Request) {
   try {
-    const session = await getServerSession();
+    const session = await getServerSession(authOptions);
     
     if (!session?.user) {
       return new Response(JSON.stringify({ error: 'Não autorizado' }), { 
@@ -15,50 +16,34 @@ export async function GET(req: Request) {
       });
     }
 
-    const { searchParams } = new URL(req.url);
-    const empresaId = searchParams.get("empresaId");
+    // Se o usuário for uma empresa, retorna apenas as quadras dela
+    if (session.user.type === 'empresa') {
+      const empresa = await prisma.empresa.findUnique({
+        where: { userId: session.user.id },
+        include: { quadras: true }
+      });
 
+      return new Response(JSON.stringify(empresa?.quadras || []), {
+        status: 200,
+        headers: { "Content-Type": "application/json" }
+      });
+    }
+
+    // Se for um cliente, retorna todas as quadras
     const quadras = await prisma.quadra.findMany({
-      where: {
-        isActive: true,
-        available: true,
-        ...(empresaId ? { empresaId: parseInt(empresaId) } : {}),
-      },
-      include: { 
-        empresa: true, 
-        horarios: {
-          where: {
-            isActive: true,
-            start: {
-              gte: new Date(), // Apenas horários futuros
-            },
-          },
-          orderBy: {
-            start: 'asc',
-          },
-        },
-        prices: {
-          include: {
-            price: true,
-          },
-          where: {
-            price: {
-              isActive: true,
-            },
-          },
-        },
-      },
+      include: { empresa: true }
     });
 
-    return new Response(JSON.stringify(quadras), { 
-      status: 200, 
-      headers: { "Content-Type": "application/json" },
+    return new Response(JSON.stringify(quadras), {
+      status: 200,
+      headers: { "Content-Type": "application/json" }
     });
+
   } catch (error) {
-    console.error("Erro ao listar quadras:", error);
-    return new Response(JSON.stringify({ error: "Erro ao listar quadras" }), {
+    console.error('Error:', error);
+    return new Response(JSON.stringify({ error: 'Erro interno do servidor' }), {
       status: 500,
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json" }
     });
   }
 }
@@ -66,46 +51,44 @@ export async function GET(req: Request) {
 // Criar uma nova quadra
 export async function POST(req: Request) {
   try {
-    const session = await getServerSession();
+    const session = await getServerSession(authOptions);
     
-    if (!session?.user || session.user.role !== 'admin') {
+    if (!session?.user || session.user.type !== 'empresa') {
       return new Response(JSON.stringify({ error: 'Não autorizado' }), { 
         status: 401,
         headers: { "Content-Type": "application/json" }
       });
     }
 
-    const body = await req.json();
-    const { name, location, description, empresaId } = body;
+    const empresa = await prisma.empresa.findUnique({
+      where: { userId: session.user.id }
+    });
 
-    // Validações básicas
-    if (!name || !location || !empresaId) {
-      return new Response(JSON.stringify({ error: "Campos obrigatórios faltando" }), {
-        status: 400,
-        headers: { "Content-Type": "application/json" },
+    if (!empresa) {
+      return new Response(JSON.stringify({ error: 'Empresa não encontrada' }), {
+        status: 404,
+        headers: { "Content-Type": "application/json" }
       });
     }
 
-    const newQuadra = await prisma.quadra.create({
-      data: { 
-        name, 
-        location, 
-        description, 
-        empresaId,
-        available: true,
-        isActive: true,
-      },
+    const data = await req.json();
+    const quadra = await prisma.quadra.create({
+      data: {
+        ...data,
+        empresaId: empresa.id
+      }
     });
 
-    return new Response(JSON.stringify(newQuadra), { 
-      status: 201, 
-      headers: { "Content-Type": "application/json" } 
+    return new Response(JSON.stringify(quadra), {
+      status: 201,
+      headers: { "Content-Type": "application/json" }
     });
+
   } catch (error) {
-    console.error("Erro ao criar quadra:", error);
-    return new Response(JSON.stringify({ error: "Erro ao criar quadra" }), { 
+    console.error('Error:', error);
+    return new Response(JSON.stringify({ error: 'Erro interno do servidor' }), {
       status: 500,
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json" }
     });
   }
 }
@@ -113,9 +96,9 @@ export async function POST(req: Request) {
 // Atualizar uma quadra existente
 export async function PUT(req: Request) {
   try {
-    const session = await getServerSession();
+    const session = await getServerSession(authOptions);
     
-    if (!session?.user || session.user.role !== 'admin') {
+    if (!session?.user || session.user.type !== 'empresa') {
       return new Response(JSON.stringify({ error: 'Não autorizado' }), { 
         status: 401,
         headers: { "Content-Type": "application/json" }
@@ -158,9 +141,9 @@ export async function PUT(req: Request) {
 // Excluir uma quadra (exclusão lógica)
 export async function DELETE(req: Request) {
   try {
-    const session = await getServerSession();
+    const session = await getServerSession(authOptions);
     
-    if (!session?.user || session.user.role !== 'admin') {
+    if (!session?.user || session.user.type !== 'empresa') {
       return new Response(JSON.stringify({ error: 'Não autorizado' }), { 
         status: 401,
         headers: { "Content-Type": "application/json" }
