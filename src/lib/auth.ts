@@ -144,39 +144,32 @@ export const authOptions: AuthOptions = {
   adapter: customPrismaAdapter,
   callbacks: {
     async signIn({ user, account, profile }) {
-      console.log('SignIn Callback:', { user, account, profile });
-      // Se for login com Google em /register/empresa, marcar como empresa
       if (account?.provider === "google") {
-        const isEmpresa = global?.window?.location?.pathname?.includes('/register/empresa');
-        if (isEmpresa) {
-          await prisma.user.update({
-            where: { email: user.email! },
-            data: { type: "empresa" },
-            select: {
-              id: true,
-              name: true,
-              email: true,
-              emailVerified: true,
-              image: true,
-              type: true,
-              role: true
-            }
-          });
-        }
+        return true;
       }
       return true;
     },
-    async session({ session, user }) {
-      if (session.user) {
-        session.user.id = user.id;
-        session.user.type = user.type;
-        session.user.role = user.role;
+    async session({ session, token, user }) {
+      if (session?.user) {
+        // If using database sessions, use the user object
+        if (user) {
+          session.user.id = user.id;
+          session.user.type = user.type;
+          session.user.role = user.role;
+        }
+        // If using JWT sessions, use the token
+        else if (token) {
+          session.user.id = token.id || token.sub;
+          session.user.type = token.type as string;
+          session.user.role = token.role as string;
+        }
       }
       return session;
     },
     async jwt({ token, user }) {
       if (user) {
         token.id = user.id;
+        token.sub = user.id;
         token.type = user.type;
         token.role = user.role;
       }

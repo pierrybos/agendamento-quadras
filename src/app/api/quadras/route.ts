@@ -20,7 +20,14 @@ export async function GET(req: Request) {
     if (session.user.type === 'empresa') {
       const empresa = await prisma.empresa.findUnique({
         where: { userId: session.user.id },
-        include: { quadras: true }
+        include: { 
+          quadras: {
+            include: {
+              horarios: true,
+              empresa: true
+            }
+          }
+        }
       });
 
       return new Response(JSON.stringify(empresa?.quadras || []), {
@@ -31,7 +38,14 @@ export async function GET(req: Request) {
 
     // Se for um cliente, retorna todas as quadras
     const quadras = await prisma.quadra.findMany({
-      include: { empresa: true }
+      include: { 
+        empresa: {
+          include: {
+            user: true
+          }
+        },
+        horarios: true
+      }
     });
 
     return new Response(JSON.stringify(quadras), {

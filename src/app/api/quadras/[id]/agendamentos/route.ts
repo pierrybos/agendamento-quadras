@@ -1,14 +1,16 @@
+'use server'
+
 import { PrismaClient } from "@prisma/client";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 
 const globalForPrisma = globalThis as unknown as {
-  prisma: PrismaClient | undefined
-}
+  prisma: PrismaClient | undefined;
+};
 
-const prisma = globalForPrisma.prisma ?? new PrismaClient()
+const prisma = globalForPrisma.prisma ?? new PrismaClient();
 
-if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma
+if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma;
 
 // Listar agendamentos de uma quadra
 export async function GET(
@@ -17,6 +19,7 @@ export async function GET(
 ) {
   try {
     const session = await getServerSession(authOptions);
+    const quadraId = await params.id;
     
     if (!session?.user) {
       return new Response(JSON.stringify({ error: 'Não autorizado' }), { 
@@ -31,7 +34,7 @@ export async function GET(
 
     const agendamentos = await prisma.agendamento.findMany({
       where: {
-        quadraId: params.id,
+        quadraId,
         ...(inicio && fim ? {
           dataInicio: {
             gte: new Date(inicio)
@@ -67,6 +70,7 @@ export async function POST(
 ) {
   try {
     const session = await getServerSession(authOptions);
+    const quadraId = await params.id;
     
     if (!session?.user) {
       return new Response(JSON.stringify({ error: 'Não autorizado' }), { 
@@ -76,11 +80,11 @@ export async function POST(
     }
 
     const data = await req.json();
-    
+
     // Verifica se já existe agendamento no mesmo horário
     const conflito = await prisma.agendamento.findFirst({
       where: {
-        quadraId: params.id,
+        quadraId,
         status: "confirmado",
         OR: [
           {
@@ -108,10 +112,14 @@ export async function POST(
 
     const agendamento = await prisma.agendamento.create({
       data: {
-        ...data,
-        quadraId: params.id,
+        nomeCliente: data.nomeCliente,
+        telefoneCliente: data.telefoneCliente,
+        email: data.email,
+        observacoes: data.observacoes,
         dataInicio: new Date(data.dataInicio),
-        dataFim: new Date(data.dataFim)
+        dataFim: new Date(data.dataFim),
+        quadraId,
+        status: "confirmado"
       }
     });
 

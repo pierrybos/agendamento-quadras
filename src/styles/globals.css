@@ -1,0 +1,15 @@
+/* Definindo variáveis de tema para claro e escuro */
+:root {
+  --background-color: white;
+  --text-color: black;
+}
+
+.dark {
+  --background-color: black;
+  --text-color: white;
+}
+
+body {
+  background-color: var(--background-color);
+  color: var(--text-color);
+}

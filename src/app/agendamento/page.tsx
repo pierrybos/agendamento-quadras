@@ -143,7 +143,9 @@ export default function ClienteAgendamento() {
               >
                 <h3 className="font-semibold">{quadra.name}</h3>
                 <p className="text-sm text-gray-600">{quadra.location}</p>
-                <p className="text-sm text-gray-500">{quadra.empresa.name}</p>
+                {quadra.empresa && (
+                  <p className="text-sm text-gray-500">{quadra.empresa.name}</p>
+                )}
               </div>
             ))}
           </div>
@@ -156,7 +158,7 @@ export default function ClienteAgendamento() {
               Selecione o Horário
             </label>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-              {selectedQuadraData.horarios.map((horario) => (
+              {selectedQuadraData?.horarios?.map((horario) => (
                 <button
                   key={horario.id}
                   type="button"

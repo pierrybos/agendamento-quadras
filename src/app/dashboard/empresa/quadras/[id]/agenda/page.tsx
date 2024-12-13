@@ -1,13 +1,20 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { Calendar } from '@/components/ui/calendar'
+import { createContext, useCallback, useContext, useEffect, useState } from 'react'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { useParams } from 'next/navigation'
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
+import { ScrollArea } from "@/components/ui/scroll-area"
+import { cn } from '@/lib/utils'
+import { CalendarWrapper } from '@/components/ui/calendar-wrapper'
+import { Checkbox } from "@/components/ui/checkbox"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { useTheme } from "next-themes"
+import ThemeToggle from '@/components/ui/ThemeToggle';
 
 interface Agendamento {
   id: string
@@ -15,28 +22,221 @@ interface Agendamento {
   dataFim: string
   nomeCliente: string
   telefoneCliente: string
+  isWhatsapp: boolean
   email?: string
   status: string
+  tipo: string
   observacoes?: string
 }
 
+interface FormData {
+  nomeCliente: string
+  telefoneCliente: string
+  isWhatsapp: boolean
+  email: string
+  observacoes: string
+  horarioInicio: string
+  horarioFim: string
+  status: string
+  tipo: string
+}
+
+interface FormContextType {
+  formData: FormData
+  setFormData: (data: Partial<FormData>) => void
+  handleSubmit: (e: React.FormEvent) => Promise<void>
+}
+
+const FormContext = createContext<FormContextType | null>(null)
+
+const useFormContext = () => {
+  const context = useContext(FormContext)
+  if (!context) throw new Error('useFormContext must be used within FormProvider')
+  return context
+}
+
+// Horários disponíveis para agendamento
+const HORARIOS = Array.from({ length: 32 }, (_, i) => {
+  const hour = Math.floor(i / 2) + 6 // Começa às 6h
+  const minute = (i % 2) * 30
+  return `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`
+})
+
+const formatDateToLocale = (date: Date) => {
+  const weekdays = ['domingo', 'segunda-feira', 'terça-feira', 'quarta-feira', 'quinta-feira', 'sexta-feira', 'sábado']
+  const months = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro']
+  
+  const weekday = weekdays[date.getDay()]
+  const day = date.getDate()
+  const month = months[date.getMonth()]
+  
+  return `${weekday}, ${day} de ${month}`
+}
+
+const formatPhoneNumber = (value: string) => {
+  const numbers = value.replace(/\D/g, '')
+  if (numbers.length <= 2) return numbers
+  if (numbers.length <= 3) return `${numbers.slice(0, 2)} ${numbers.slice(2)}`
+  return `${numbers.slice(0, 2)} ${numbers.slice(2, 3)}${numbers.slice(3, 11)}`
+}
+
+const AgendamentoForm = () => {
+  const { formData, setFormData, handleSubmit } = useFormContext()
+
+  const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const formatted = formatPhoneNumber(e.target.value)
+    setFormData({ telefoneCliente: formatted })
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <div className="grid grid-cols-2 gap-4">
+        <div className="space-y-2">
+          <Label htmlFor="horarioInicio">Horário Início</Label>
+          <Input
+            id="horarioInicio"
+            type="time"
+            value={formData.horarioInicio}
+            onChange={(e) => setFormData({ horarioInicio: e.target.value })}
+            required
+          />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="horarioFim">Horário Fim</Label>
+          <Input
+            id="horarioFim"
+            type="time"
+            value={formData.horarioFim}
+            onChange={(e) => setFormData({ horarioFim: e.target.value })}
+            required
+          />
+        </div>
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="nomeCliente">Nome do Cliente</Label>
+        <Input
+          id="nomeCliente"
+          value={formData.nomeCliente}
+          onChange={(e) => setFormData({ nomeCliente: e.target.value })}
+          required
+        />
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="telefoneCliente">Telefone</Label>
+        <div className="flex items-center gap-2">
+          <Input
+            id="telefoneCliente"
+            value={formData.telefoneCliente}
+            onChange={handlePhoneChange}
+            placeholder="51 999999999"
+            required
+          />
+          <div className="flex items-center gap-2">
+            <Checkbox
+              id="isWhatsapp"
+              checked={formData.isWhatsapp}
+              onCheckedChange={(checked) => setFormData({ isWhatsapp: checked as boolean })}
+            />
+            <Label htmlFor="isWhatsapp" className="text-sm">WhatsApp</Label>
+          </div>
+        </div>
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="email">Email (opcional)</Label>
+        <Input
+          id="email"
+          type="email"
+          value={formData.email}
+          onChange={(e) => setFormData({ email: e.target.value })}
+        />
+      </div>
+
+      <div className="grid grid-cols-2 gap-4">
+        <div className="space-y-2">
+          <Label htmlFor="status">Status</Label>
+          <Select
+            value={formData.status}
+            onValueChange={(value) => setFormData({ status: value })}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Selecione o status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="pendente">Pendente</SelectItem>
+              <SelectItem value="confirmado">Confirmado</SelectItem>
+              <SelectItem value="pago">Pago</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="tipo">Tipo</Label>
+          <Select
+            value={formData.tipo}
+            onValueChange={(value) => setFormData({ tipo: value })}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Selecione o tipo" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="eventual">Eventual</SelectItem>
+              <SelectItem value="mensal">Mensal</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="observacoes">Observações</Label>
+        <Textarea
+          id="observacoes"
+          value={formData.observacoes}
+          onChange={(e) => setFormData({ observacoes: e.target.value })}
+        />
+      </div>
+
+      <div className="flex justify-end gap-2">
+        <Button type="submit">Salvar</Button>
+      </div>
+    </form>
+  )
+}
+
 export default function AgendaPage() {
+  const { theme, setTheme } = useTheme()
   const params = useParams()
-  const [date, setDate] = useState<Date>(new Date())
+  const [mounted, setMounted] = useState(false)
+  const [date, setDate] = useState<Date>(() => {
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    return today
+  })
   const [agendamentos, setAgendamentos] = useState<Agendamento[]>([])
-  const [showForm, setShowForm] = useState(false)
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<FormData>({
     nomeCliente: '',
     telefoneCliente: '',
+    isWhatsapp: false,
     email: '',
     observacoes: '',
     horarioInicio: '08:00',
-    horarioFim: '09:00'
+    horarioFim: '09:00',
+    status: 'pendente',
+    tipo: 'eventual'
   })
+  const [isSheetOpen, setIsSheetOpen] = useState(false)
 
   useEffect(() => {
-    loadAgendamentos()
-  }, [date])
+    setMounted(true)
+  }, [])
+
+  useEffect(() => {
+    if (mounted) {
+      loadAgendamentos()
+    }
+  }, [date, mounted])
 
   const loadAgendamentos = async () => {
     const inicio = new Date(date)
@@ -76,23 +276,32 @@ export default function AgendaPage() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          ...formData,
-          dataInicio,
-          dataFim,
+          nomeCliente: formData.nomeCliente,
+          telefoneCliente: formData.telefoneCliente,
+          isWhatsapp: formData.isWhatsapp,
+          email: formData.email,
+          observacoes: formData.observacoes,
+          status: formData.status,
+          tipo: formData.tipo,
+          dataInicio: dataInicio.toISOString(),
+          dataFim: dataFim.toISOString(),
         }),
       })
 
       if (response.ok) {
-        setShowForm(false)
-        loadAgendamentos()
         setFormData({
           nomeCliente: '',
           telefoneCliente: '',
+          isWhatsapp: false,
           email: '',
           observacoes: '',
           horarioInicio: '08:00',
-          horarioFim: '09:00'
+          horarioFim: '09:00',
+          status: 'pendente',
+          tipo: 'eventual'
         })
+        loadAgendamentos()
+        setIsSheetOpen(false)
       } else {
         const error = await response.json()
         alert(error.error || 'Erro ao criar agendamento')
@@ -103,152 +312,134 @@ export default function AgendaPage() {
     }
   }
 
+  const updateFormData = useCallback((data: Partial<FormData>) => {
+    setFormData(prev => ({ ...prev, ...data }))
+  }, [])
+
+  const isHorarioOcupado = (horario: string) => {
+    const [hora, minuto] = horario.split(':')
+    const horarioData = new Date(date)
+    horarioData.setHours(parseInt(hora), parseInt(minuto), 0)
+    
+    return agendamentos.some(agendamento => {
+      const inicio = new Date(agendamento.dataInicio)
+      const fim = new Date(agendamento.dataFim)
+      return horarioData >= inicio && horarioData < fim
+    })
+  }
+
+  const getAgendamento = (horario: string) => {
+    const [hora, minuto] = horario.split(':')
+    const horarioData = new Date(date)
+    horarioData.setHours(parseInt(hora), parseInt(minuto), 0)
+    
+    return agendamentos.find(agendamento => {
+      const inicio = new Date(agendamento.dataInicio)
+      const fim = new Date(agendamento.dataFim)
+      return horarioData >= inicio && horarioData < fim
+    })
+  }
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'pendente':
+        return 'text-yellow-500 dark:text-yellow-400'
+      case 'confirmado':
+        return 'text-green-500 dark:text-green-400'
+      case 'pago':
+        return 'text-blue-500 dark:text-blue-400'
+      default:
+        return ''
+    }
+  }
+
+  const formContextValue = {
+    formData,
+    setFormData: updateFormData,
+    handleSubmit
+  }
+
   return (
-    <div className="p-4">
-      <h1 className="text-2xl font-bold mb-4">Agenda da Quadra</h1>
-      
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <Card className="p-4">
-          <Calendar
-            mode="single"
+    <div className="container mx-auto p-4">
+      <div className="flex justify-end mb-4">
+        <ThemeToggle />
+      </div>
+      <div className="flex flex-col md:flex-row gap-4">
+        {/* Coluna do Calendário */}
+        <Card className="md:w-[350px] p-4">
+          <CalendarWrapper
             selected={date}
-            onSelect={(date) => date && setDate(date)}
+            onSelect={(newDate) => newDate && setDate(newDate)}
             className="rounded-md border"
+            disabled={!mounted}
           />
         </Card>
 
-        <Card className="p-4">
+        {/* Coluna dos Horários */}
+        <Card className="flex-1 p-4">
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-xl font-semibold">
-              Agendamentos para {date.toLocaleDateString()}
+              {mounted ? formatDateToLocale(date) : null}
             </h2>
-            <Button onClick={() => setShowForm(true)}>Novo Agendamento</Button>
+            
+            <Sheet open={isSheetOpen} onOpenChange={setIsSheetOpen}>
+              <SheetTrigger asChild>
+                <Button disabled={!mounted}>Novo Agendamento</Button>
+              </SheetTrigger>
+              <SheetContent side="right" className="w-[400px] sm:w-[540px]">
+                <SheetHeader>
+                  <SheetTitle>Novo Agendamento</SheetTitle>
+                </SheetHeader>
+                <div className="mt-4">
+                  <FormContext.Provider value={formContextValue}>
+                    <AgendamentoForm />
+                  </FormContext.Provider>
+                </div>
+              </SheetContent>
+            </Sheet>
           </div>
 
-          {showForm && (
-            <form onSubmit={handleSubmit} className="space-y-4 mb-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="horarioInicio">Horário Início</Label>
-                  <Input
-                    id="horarioInicio"
-                    type="time"
-                    value={formData.horarioInicio}
-                    onChange={(e) =>
-                      setFormData({ ...formData, horarioInicio: e.target.value })
-                    }
-                    required
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="horarioFim">Horário Fim</Label>
-                  <Input
-                    id="horarioFim"
-                    type="time"
-                    value={formData.horarioFim}
-                    onChange={(e) =>
-                      setFormData({ ...formData, horarioFim: e.target.value })
-                    }
-                    required
-                  />
-                </div>
-              </div>
+          <ScrollArea className="h-[calc(100vh-300px)]">
+            <div className="space-y-2">
+              {mounted ? (
+                HORARIOS.map((horario) => {
+                  const agendamento = getAgendamento(horario)
+                  const ocupado = isHorarioOcupado(horario)
 
-              <div className="space-y-2">
-                <Label htmlFor="nomeCliente">Nome do Cliente</Label>
-                <Input
-                  id="nomeCliente"
-                  value={formData.nomeCliente}
-                  onChange={(e) =>
-                    setFormData({ ...formData, nomeCliente: e.target.value })
-                  }
-                  required
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="telefoneCliente">Telefone</Label>
-                <Input
-                  id="telefoneCliente"
-                  value={formData.telefoneCliente}
-                  onChange={(e) =>
-                    setFormData({ ...formData, telefoneCliente: e.target.value })
-                  }
-                  required
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="email">Email (opcional)</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  value={formData.email}
-                  onChange={(e) =>
-                    setFormData({ ...formData, email: e.target.value })
-                  }
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="observacoes">Observações</Label>
-                <Textarea
-                  id="observacoes"
-                  value={formData.observacoes}
-                  onChange={(e) =>
-                    setFormData({ ...formData, observacoes: e.target.value })
-                  }
-                />
-              </div>
-
-              <div className="flex gap-2">
-                <Button type="submit">Salvar</Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => setShowForm(false)}
-                >
-                  Cancelar
-                </Button>
-              </div>
-            </form>
-          )}
-
-          <div className="space-y-2">
-            {agendamentos.length === 0 ? (
-              <p className="text-gray-500">Nenhum agendamento para este dia</p>
-            ) : (
-              agendamentos.map((agendamento) => (
-                <Card key={agendamento.id} className="p-3">
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <p className="font-semibold">{agendamento.nomeCliente}</p>
-                      <p className="text-sm text-gray-600">
-                        {new Date(agendamento.dataInicio).toLocaleTimeString()} - {new Date(agendamento.dataFim).toLocaleTimeString()}
-                      </p>
-                      <p className="text-sm">{agendamento.telefoneCliente}</p>
-                      {agendamento.observacoes && (
-                        <p className="text-sm text-gray-500 mt-1">
-                          {agendamento.observacoes}
-                        </p>
+                  return (
+                    <div
+                      key={horario}
+                      className={cn(
+                        "p-3 rounded-lg border",
+                        ocupado 
+                          ? "bg-primary/10 border-primary" 
+                          : "hover:bg-accent cursor-pointer"
                       )}
-                    </div>
-                    <span
-                      className={`px-2 py-1 rounded-full text-xs ${
-                        agendamento.status === 'confirmado'
-                          ? 'bg-green-100 text-green-800'
-                          : agendamento.status === 'cancelado'
-                          ? 'bg-red-100 text-red-800'
-                          : 'bg-yellow-100 text-yellow-800'
-                      }`}
                     >
-                      {agendamento.status}
-                    </span>
-                  </div>
-                </Card>
-              ))
-            )}
-          </div>
+                      <div className="flex items-center justify-between">
+                        <span className="font-medium">{horario}</span>
+                        {agendamento && (
+                          <div className="text-sm">
+                            <div className="flex items-center gap-2">
+                              <p className="font-semibold">{agendamento.nomeCliente}</p>
+                              <span className={cn("text-xs font-medium", getStatusColor(agendamento.status))}>
+                                {agendamento.status}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-2 text-muted-foreground">
+                              <p>{agendamento.telefoneCliente}</p>
+                              {agendamento.isWhatsapp && <span>📱</span>}
+                              <span className="text-xs">{agendamento.tipo}</span>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )
+                })
+              ) : null}
+            </div>
+          </ScrollArea>
         </Card>
       </div>
     </div>

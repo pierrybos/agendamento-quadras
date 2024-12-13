@@ -2,7 +2,8 @@
 // learn more about it in the docs: https://pris.ly/d/prisma-schema
 
 generator client {
-  provider = "prisma-client-js"
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "debian-openssl-1.1.x"]
 }
 
 datasource db {
@@ -24,8 +25,6 @@ model User {
   empresaOwned  Empresa?  @relation("EmpresaOwner")
   accounts      Account[]
   sessions      Session[]
-
-  @@map("users")
 }
 
 model Account {
@@ -45,7 +44,6 @@ model Account {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([provider, providerAccountId])
-  @@map("accounts")
 }
 
 model Session {
@@ -64,7 +62,6 @@ model VerificationToken {
   expires    DateTime
 
   @@unique([identifier, token])
-  @@map("verificationtokens")
 }
 
 model Empresa {
@@ -77,7 +74,7 @@ model Empresa {
 }
 
 model Quadra {
-  id              String   @id @default(cuid())
+  id              String  @id @default(cuid())
   name            String
   location        String
   description     String?
@@ -86,19 +83,34 @@ model Quadra {
   empresaId       String
   empresa         Empresa  @relation(fields: [empresaId], references: [id])
   agendamentos    Agendamento[]
+  horarios        HorarioQuadra[]
+}
+
+model HorarioQuadra {
+  id        String   @id @default(cuid())
+  start     String
+  end       String
+  quadraId  String
+  quadra    Quadra   @relation(fields: [quadraId], references: [id])
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("horarios_quadra")
 }
 
 model Agendamento {
-  id        String   @id @default(cuid())
-  quadraId  String
-  quadra    Quadra   @relation(fields: [quadraId], references: [id])
-  dataInicio DateTime
-  dataFim   DateTime
-  nomeCliente String
+  id              String   @id @default(cuid())
+  quadraId        String
+  quadra          Quadra   @relation(fields: [quadraId], references: [id])
+  dataInicio      DateTime
+  dataFim         DateTime
+  nomeCliente     String
   telefoneCliente String
-  email     String?
-  status    String   @default("confirmado") // confirmado, cancelado, pendente
-  observacoes String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  isWhatsapp      Boolean  @default(false)
+  email           String?
+  status          String   @default("pendente") // pendente, confirmado, pago
+  tipo            String   @default("eventual") // eventual, mensal
+  observacoes     String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 }

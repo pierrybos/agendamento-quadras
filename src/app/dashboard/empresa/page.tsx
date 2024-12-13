@@ -62,7 +62,7 @@ export default function DashboardEmpresa() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {quadras.map((quadra) => (
+        {quadras.length > 0 && quadras.map((quadra) => (
           <Card key={quadra.id}>
             <CardHeader>
               <CardTitle>{quadra.name}</CardTitle>
